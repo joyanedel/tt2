@@ -3,12 +3,13 @@ from torch.nn import Module
 from torch.optim import Optimizer
 
 from base_code.dataloaders.base import ContinualLearningDataLoader
+from base_code.losses.base import StatefulLoss
 
 
 def train(
     model: Module,
     dataloader: ContinualLearningDataLoader,
-    loss_fn: callable,
+    loss_fn: Module,
     optimizer: Optimizer
 ):
     """Train the model on the given dataset.
@@ -33,7 +34,7 @@ def train(
 
         # Compute prediction and loss
         pred = model(X)
-        loss = loss_fn(pred, y, model, dataloader)
+        loss = loss_fn(pred, y, model)
 
         # Backpropagation
         loss.backward()
@@ -43,7 +44,9 @@ def train(
         if batch % 100 == 0:
             loss, current = loss.item(), (batch + 1) * len(X)
             print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
-
+    
+    if isinstance(loss_fn, StatefulLoss):
+        loss_fn.update(model, optimizer.param_groups[0]['params'])
 
 def test(
     model: Module,
