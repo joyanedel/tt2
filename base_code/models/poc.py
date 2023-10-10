@@ -18,5 +18,7 @@ class NeuralNetwork(nn.Module):
 
     def forward(self, x: Tensor):
         x = x.type(torch.float32)
+        print(x)
         logits = self.linear_relu_stack(x)
+        print(logits)
         return logits

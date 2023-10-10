@@ -29,6 +29,10 @@ def train(
     -------
     None
     """
+    if isinstance(loss_fn, StatefulLoss):
+        print("Updating loss function")
+        loss_fn.update(model, dataloader)
+
     size = len(dataloader.dataset)
     for batch, (X, y) in enumerate(dataloader):
 
@@ -44,9 +48,10 @@ def train(
         if batch % 100 == 0:
             loss, current = loss.item(), (batch + 1) * len(X)
             print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
-    
+
     if isinstance(loss_fn, StatefulLoss):
-        loss_fn.update(model, optimizer.param_groups[0]['params'])
+        loss_fn.update(model, dataloader)
+
 
 def test(
     model: Module,

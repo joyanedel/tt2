@@ -5,7 +5,7 @@ from torch.autograd import Variable as variable
 from torch.nn import functional as F, Module
 from torch.nn import CrossEntropyLoss
 from torch.nn.parameter import Parameter
-from torch.utils.data import dataloader
+from torch.utils.data import DataLoader
 
 from typing import Dict, Optional
 
@@ -30,23 +30,23 @@ class EWC(CrossEntropyLoss, StatefulLoss):
         self._means = defaultdict(Tensor) # TODO: check if this is the right way to initialize # noqa
         self._precision_matrices = defaultdict(Tensor) # TODO: check if this is the right way to initialize # noqa
 
-    def _diag_fisher(self, params: Dict[str, Parameter], dataset: dataloader):
-        precision_matrices = {}
+    def _diag_fisher(self, model: Module, params: Dict[str, Parameter], dataloader: DataLoader):
+        precision_matrices: Dict[str, variable] = {}
 
         for n, p in params.items():
             p.data.zero_()
             precision_matrices[n] = variable(p.data)
 
-        for input in dataset:
+        for (inp, _) in dataloader.dataset:
             self.zero_grad()
-            input = variable(input)
-            output = self.model(input).view(1, -1)
+            # input (ndarray) to tensor
+            output = model(Tensor(inp).view(1, -1))
             label = output.max(1)[1].view(-1)
             loss = F.nll_loss(F.log_softmax(output, dim=1), label)
             loss.backward()
 
-            for n, p in params.items():
-                precision_matrices[n].data += p.grad.data ** 2 / len(dataset)
+            for n, p in model.named_parameters():
+                precision_matrices[n].data += p.grad.data ** 2 / len(dataloader.dataset)
 
         precision_matrices = {n: p for n, p in precision_matrices.items()}
         return precision_matrices
@@ -77,15 +77,16 @@ class EWC(CrossEntropyLoss, StatefulLoss):
     def update(
         self,
         model: Module,
-        dataset: dataloader
+        dataset: DataLoader
     ) -> None:
-        with model.eval() as model_eval:
-            params = deepcopy({n: p for n, p in model_eval.named_parameters() if p.requires_grad})
-            # update means
-            self._means.update(self._get_means(params))
+        params = deepcopy({n: p for n, p in model.named_parameters() if p.requires_grad})
+        # update means
+        self._means.update(self._get_means(params))
 
-            # update precision matrices
-            self._precision_matrices.update(self._diag_fisher(params, dataset))
+        # update precision matrices
+        model.eval()
+        self._precision_matrices.update(self._diag_fisher(model, params, dataset))
+        model.train()
 
 
 # class EWC(object):
