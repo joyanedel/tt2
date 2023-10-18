@@ -1,5 +1,5 @@
 import torch
-from torch.nn import Module
+from torch import nn
 from torch.optim import Optimizer
 
 from base_code.dataloaders.base import ContinualLearningDataLoader
@@ -7,40 +7,17 @@ from base_code.losses.base import StatefulLoss
 
 
 def train(
-    model: Module,
+    model: nn.Module,
     dataloader: ContinualLearningDataLoader,
-    loss_fn: Module,
+    loss_fn: StatefulLoss,
     optimizer: Optimizer
 ):
-    """Train the model on the given dataset.
-
-    Parameters
-    ----------
-    dataloader : DataLoader
-        The dataset to train the model on.
-    model : Module
-        The model to train.
-    loss_fn : callable
-        The loss function to use.
-    optimizer : Optimizer
-        The optimizer to use.
-
-    Returns
-    -------
-    None
-    """
-    if isinstance(loss_fn, StatefulLoss):
-        print("Updating loss function")
-        loss_fn.update(model, dataloader)
-
     size = len(dataloader.dataset)
-    for batch, (X, y) in enumerate(dataloader):
-        # Compute prediction and loss
-        pred = model(X)
-        args = (pred, y) if not isinstance(loss_fn, StatefulLoss) else (pred, y, model)
-        loss = loss_fn(*args)
 
-        # Backpropagation
+    for batch, (X, y) in enumerate(dataloader):
+        pred = model(X)
+        loss = loss_fn(pred, y, model)
+
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
@@ -49,14 +26,13 @@ def train(
             loss, current = loss.item(), (batch + 1) * len(X)
             print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
 
-    if isinstance(loss_fn, StatefulLoss):
-        loss_fn.update(model, dataloader)
+    loss_fn.update(model, dataloader)
 
 
 def test(
-    model: Module,
+    model: nn.Module,
     dataloader: ContinualLearningDataLoader,
-    loss_fn: callable
+    loss_fn: StatefulLoss
 ):
     size = len(dataloader.dataset)
     num_batches = len(dataloader)
@@ -65,8 +41,7 @@ def test(
     with torch.no_grad():
         for X, y in dataloader:
             pred = model(X)
-            args = (pred, y) if not isinstance(loss_fn, StatefulLoss) else (pred, y, model)
-            test_loss += loss_fn(*args).item()
+            test_loss += loss_fn(pred, y, model).item()
             correct += (pred.argmax(1) == y.argmax(1)).type(torch.float).sum().item()
 
     test_loss /= num_batches
