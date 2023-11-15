@@ -4,7 +4,7 @@ from avalanche.training.plugins.evaluation import EvaluationPlugin
 from avalanche.training.plugins import SupervisedPlugin
 from avalanche.training.templates import SupervisedTemplate
 import torch
-from torch.nn import CrossEntropyLoss, Module
+from torch.nn import Module
 from torch.optim import Optimizer
 
 CallbackResult = TypeVar("CallbackResult")

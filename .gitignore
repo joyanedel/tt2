@@ -2,3 +2,10 @@ datasets
 
 # OSX Trash files
 .DS_Store
+
+# Python
+*.pyc
+__pycache__/
+
+# Jupyter Notebook
+.ipynb_checkpoints

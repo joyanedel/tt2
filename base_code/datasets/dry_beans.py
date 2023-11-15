@@ -1,14 +1,14 @@
 import numpy as np
 import pandas as pd
 
-from base_code.constants import DATASET_PATH
+from base_code.constants import DATASETS_PATH
 from base_code.datasets.base import ContinualLearningDataset
 
 
 class DryBeansDataset(ContinualLearningDataset):
     def __init__(self) -> None:
         super().__init__()
-        dataset = pd.read_csv(DATASET_PATH / "dry_beans.csv")
+        dataset = pd.read_csv(DATASETS_PATH / "dry_beans.csv")
         self.features = dataset.drop(columns=["Class"]).values
         self.labels = dataset["Class"]
         self.__unique_labels = self.labels.unique()
