@@ -10,7 +10,7 @@ def train(
     model: nn.Module,
     dataloader: ContinualLearningDataLoader,
     loss_fn: StatefulLoss,
-    optimizer: Optimizer
+    optimizer: Optimizer,
 ):
     size = len(dataloader.dataset)
 
@@ -29,11 +29,7 @@ def train(
     loss_fn.update(model, dataloader)
 
 
-def test(
-    model: nn.Module,
-    dataloader: ContinualLearningDataLoader,
-    loss_fn: StatefulLoss
-):
+def test(model: nn.Module, dataloader: ContinualLearningDataLoader, loss_fn: StatefulLoss):
     size = len(dataloader.dataset)
     num_batches = len(dataloader)
     test_loss, correct = 0, 0

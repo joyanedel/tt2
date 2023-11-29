@@ -6,10 +6,11 @@ class ContinualLearningDataLoader(DataLoader):
     """DataLoader for continual learning."""
 
     def __init__(
-        self, dataset: ContinualLearningDataset,
+        self,
+        dataset: ContinualLearningDataset,
         batch_size: int,
         shuffle: bool,
-        num_workers: int = 1
+        num_workers: int = 1,
     ):
         super().__init__(
             dataset,

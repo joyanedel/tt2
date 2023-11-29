@@ -17,7 +17,9 @@ def pipeline(x: np.ndarray):
     Pipeline
         Pipeline to normalize and standarize the data.
     """
-    return Pipeline([
-        ("normalizer", Normalizer()),
-        ("standarizer", StandardScaler()),
-    ]).fit(x)
+    return Pipeline(
+        [
+            ("normalizer", Normalizer()),
+            ("standarizer", StandardScaler()),
+        ]
+    ).fit(x)

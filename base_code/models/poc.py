@@ -13,7 +13,7 @@ class NeuralNetwork(nn.Module):
             nn.Linear(32, 16),
             nn.ReLU(),
             nn.Linear(16, output_shape),
-            nn.Softmax(dim=1)
+            nn.Softmax(dim=1),
         )
 
     def forward(self, x: Tensor):

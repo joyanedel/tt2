@@ -21,14 +21,18 @@ class EWC(CrossEntropyLoss, StatefulLoss):
         size_average=None,
         ignore_index: int = -100,
         reduce=None,
-        reduction: str = 'mean',
-        label_smoothing: float = 0
+        reduction: str = "mean",
+        label_smoothing: float = 0,
     ) -> None:
         super().__init__(weight, size_average, ignore_index, reduce, reduction, label_smoothing)
         self.penalizable = False
         self.importance = importance
-        self._means = defaultdict(Tensor) # TODO: check if this is the right way to initialize # noqa
-        self._precision_matrices = defaultdict(Tensor) # TODO: check if this is the right way to initialize # noqa
+        self._means = defaultdict(
+            Tensor
+        )  # TODO: check if this is the right way to initialize # noqa
+        self._precision_matrices = defaultdict(
+            Tensor
+        )  # TODO: check if this is the right way to initialize # noqa
 
     def _diag_fisher(self, model: Module, params: Dict[str, Parameter], dataloader: DataLoader):
         precision_matrices: Dict[str, variable] = {}
@@ -37,7 +41,7 @@ class EWC(CrossEntropyLoss, StatefulLoss):
             p.data.zero_()
             precision_matrices[n] = variable(p.data)
 
-        for (inp, _) in dataloader.dataset:
+        for inp, _ in dataloader.dataset:
             self.zero_grad()
             # input (ndarray) to tensor
             output = model(Tensor(inp).view(1, -1))
@@ -46,7 +50,7 @@ class EWC(CrossEntropyLoss, StatefulLoss):
             loss.backward()
 
             for n, p in model.named_parameters():
-                precision_matrices[n].data += p.grad.data ** 2 / len(dataloader.dataset)
+                precision_matrices[n].data += p.grad.data**2 / len(dataloader.dataset)
 
         precision_matrices = {n: p for n, p in precision_matrices.items()}
         return precision_matrices
@@ -63,12 +67,7 @@ class EWC(CrossEntropyLoss, StatefulLoss):
 
         return loss
 
-    def forward(
-        self,
-        input: Tensor,
-        target: Tensor,
-        model: Module
-    ) -> Tensor:
+    def forward(self, input: Tensor, target: Tensor, model: Module) -> Tensor:
         loss = super().forward(input, target)
 
         if not self.penalizable:
@@ -78,11 +77,7 @@ class EWC(CrossEntropyLoss, StatefulLoss):
 
         return ewc_loss
 
-    def update(
-        self,
-        model: Module,
-        dataset: DataLoader
-    ) -> None:
+    def update(self, model: Module, dataset: DataLoader) -> None:
         params = {n: p for n, p in model.named_parameters() if p.requires_grad}
         # update means
         self._means.update(self._get_means(params))

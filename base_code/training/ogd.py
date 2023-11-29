@@ -7,6 +7,8 @@ import torch
 from torch.nn import Module
 from torch.optim import Optimizer
 
+from base_code.helpers import flat_grads
+
 CallbackResult = TypeVar("CallbackResult")
 
 
@@ -21,7 +23,7 @@ class OGDPlugin(SupervisedPlugin):
         self.orthonormal_basis = []
 
     def after_backward(self, strategy: SupervisedTemplate, *args, **kwargs) -> CallbackResult:
-        g = self.__flatten_grad(strategy.model)
+        g = flat_grads(strategy.model)
         self.class_specific_gradient_storage.append(g)
 
         proj_g = self.project_gradient_vector(g)
@@ -35,7 +37,7 @@ class OGDPlugin(SupervisedPlugin):
         self.class_specific_gradient_storage = []
 
         self.update_orthonormal_basis()
-    
+
     @torch.no_grad
     def update_orthonormal_basis(self):
         """Update orthogonal basis for applying projection on incoming gradients"""
@@ -45,15 +47,15 @@ class OGDPlugin(SupervisedPlugin):
         # What is this method doing? This method take a list of storaged gradients and generate an orthogonal basis from that using QR factorization
         if len(self.gradient_storage) == 0:
             return
-        
+
         q, _ = torch.linalg.qr(torch.stack(self.gradient_storage).T)
         self.orthonormal_basis = q.T
         self.can_be_applied = True
-    
+
     @torch.no_grad
     def project_gradient_vector(self, g: torch.Tensor) -> torch.Tensor:
         """Return gradient ~g which is orthogonal to a specific precalculated basis
-        
+
         If basis is empty, then return g without any operation applied
         """
         # What is g? its type? g is a gradient vector and its type is Tensor
@@ -71,28 +73,20 @@ class OGDPlugin(SupervisedPlugin):
 
         return res.view(-1)
 
-    def __flatten_grad(self, model: Module) -> torch.Tensor:
-        grads = [
-            param.grad.view(-1)
-            for _, param in model.named_parameters()
-        ]
-
-        return torch.cat(grads)
-    
     def __update_model_grad(self, model: Module, grads: torch.Tensor):
         index = 0
         state_dict = model.state_dict(keep_vars=True)
 
         for param in state_dict.keys():
             # ignore batchnorm params
-            if 'running_mean' in param or 'running_var' in param or 'num_batches_tracked' in param:
+            if "running_mean" in param or "running_var" in param or "num_batches_tracked" in param:
                 continue
-            
+
             param_count = state_dict[param].numel()
             param_shape = state_dict[param].shape
-            state_dict[param].grad = grads[index:index+param_count].view(param_shape).clone()
+            state_dict[param].grad = grads[index : index + param_count].view(param_shape).clone()
             index += param_count
-        
+
         model.load_state_dict(state_dict)
 
 
@@ -106,7 +100,7 @@ class OGD(SupervisedTemplate):
         criterion,
         train_mb_size: int = 1,
         train_epochs: int = 1,
-        eval_mb_size: Union[int, None]= 1,
+        eval_mb_size: Union[int, None] = 1,
         device: Union[str, torch.device] = "cpu",
         plugins: Union[Sequence[BasePlugin], None] = None,
         evaluator: Union[EvaluationPlugin, Callable[[], EvaluationPlugin]] = ...,
@@ -130,5 +124,5 @@ class OGD(SupervisedTemplate):
             plugins=plugins,
             evaluator=evaluator,
             eval_every=eval_every,
-            **base_kwargs
+            **base_kwargs,
         )

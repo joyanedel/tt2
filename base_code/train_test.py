@@ -7,10 +7,7 @@ from base_code.losses.base import StatefulLoss
 
 
 def train(
-    model: Module,
-    dataloader: ContinualLearningDataLoader,
-    loss_fn: Module,
-    optimizer: Optimizer
+    model: Module, dataloader: ContinualLearningDataLoader, loss_fn: Module, optimizer: Optimizer
 ):
     """Train the model on the given dataset.
 
@@ -53,11 +50,7 @@ def train(
         loss_fn.update(model, dataloader)
 
 
-def test(
-    model: Module,
-    dataloader: ContinualLearningDataLoader,
-    loss_fn: callable
-):
+def test(model: Module, dataloader: ContinualLearningDataLoader, loss_fn: callable):
     size = len(dataloader.dataset)
     num_batches = len(dataloader)
     test_loss, correct = 0, 0
