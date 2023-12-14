@@ -2,7 +2,7 @@
     "editor.formatOnSave": true,
     "[python]": {
         "diffEditor.ignoreTrimWhitespace": false,
-        "editor.wordBasedSuggestions": false,
-        "editor.defaultFormatter": "ms-python.python"
+        "editor.wordBasedSuggestions": "off",
+        "editor.defaultFormatter": "ms-python.black-formatter"
     },
 }

@@ -1,4 +1,4 @@
-from typing import TypeVar
+from typing import TypeVar, List
 
 import torch
 from torch.utils.data import DataLoader
@@ -12,45 +12,42 @@ from base_code.helpers import flat_params, flat_importances
 CallbackResult = TypeVar("CallbackResult")
 
 
-class CEWCPlugin(SupervisedPlugin):
+class ACEWCPlugin(SupervisedPlugin):
     """
     Constrained Elastic Weight Consolidation (CEWC) plugin.
     """
 
     def __init__(
         self,
-        ewc_lambda_l1: float,
-        ewc_lambda_l2: float,
+        ewc_lambda: float,
         threshold: float = 1.0,
     ):
-        self.ewc_lambda_l1 = ewc_lambda_l1
-        self.ewc_lambda_l2 = ewc_lambda_l2
+        self.ewc_lambda = ewc_lambda
         self.threshold = threshold
-        self.used_params = torch.tensor([])
-        self.saved_params = torch.tensor([])
+        self.used_params: List[torch.Tensor] = list()
+        self.saved_params: List[torch.Tensor] = list()
 
-    def before_training_exp(self, strategy: SupervisedTemplate, *args, **kwargs):
-        if self.used_params.numel() == 0:
-            self.used_params = torch.zeros_like(flat_params(strategy.model), dtype=torch.bool)
-            print("Used params initialized to zero", self.used_params)
-        
-        if self.saved_params.numel() == 0:
-            self.saved_params = flat_params(strategy.model).clone()
 
     def before_backward(self, strategy: SupervisedTemplate, *args, **kwargs) -> CallbackResult:
+        exp_counter = strategy.clock.train_exp_counter
+        if exp_counter == 0:
+            return
+
         penalty = torch.tensor(0).float().to(strategy.device)
 
         flatten_params = flat_params(strategy.model)
-        not_used_params = ~self.used_params
-        diff_weights = flatten_params - self.saved_params
 
-        penalty += (diff_weights * self.used_params).norm(1) * self.ewc_lambda_l1
-        penalty += (diff_weights * not_used_params).norm(2) * self.ewc_lambda_l2
+        for prev_exp in range(exp_counter):
+            used_params = self.used_params[prev_exp]
+            not_used_params = ~used_params
+            diff_weights = flatten_params - self.saved_params[prev_exp]
+
+            penalty += (diff_weights * used_params).norm(1) * self.ewc_lambda / exp_counter
+            penalty += (diff_weights * not_used_params).norm(2) * self.ewc_lambda / exp_counter
 
         strategy.loss += penalty
 
     def after_training_exp(self, strategy: SupervisedTemplate, *args, **kwargs):
-        self.saved_params = flat_params(strategy.model).clone()
         importances = self.compute_importances(
             strategy.model,
             strategy._criterion,
@@ -59,8 +56,11 @@ class CEWCPlugin(SupervisedPlugin):
             strategy.device,
             strategy.train_mb_size,
         )
+
         new_used = importances > self.threshold
-        self.used_params = torch.logical_or(self.used_params, new_used)
+        
+        self.used_params.append(new_used)
+        self.saved_params.append(flat_params(strategy.model).clone())
 
     def compute_importances(
         self, model: torch.nn.Module, criterion, optimizer, dataset, device, batch_size, num_workers=0
@@ -111,16 +111,15 @@ class CEWCPlugin(SupervisedPlugin):
         return flat_importances(importances)
 
 
-class CEWC(SupervisedTemplate):
-    """Constrains over Elastic Weight Consolidation (CEWC) strategy implementation or maybe i should call it Dynamic Penalization over Elastic Weight Consolidation (DPEWC)"""
+class ACEWC(SupervisedTemplate):
+    """Acumulative Constrains over Elastic Weight Consolidation (CEWC) strategy implementation"""
 
     def __init__(
         self,
         model,
         optimizer,
         criterion,
-        ewc_lambda_l1: float = 0.0,
-        ewc_lambda_l2: float = 0.0,
+        ewc_lambda: float = 1.0,
         threshold: float = 1.0,
         train_mb_size: int = 1,
         train_epochs: int = 1,
@@ -131,7 +130,7 @@ class CEWC(SupervisedTemplate):
         eval_every=-1,
         **base_kwargs,
     ):
-        cewc = CEWCPlugin(ewc_lambda_l1, ewc_lambda_l2, threshold)
+        cewc = ACEWCPlugin(ewc_lambda, threshold)
 
         if plugins is None:
             plugins = []
