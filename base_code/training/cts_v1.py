@@ -6,15 +6,17 @@ from avalanche.training.plugins import SupervisedPlugin
 from avalanche.training.templates import SupervisedTemplate
 
 from base_code.helpers import flat_params
-
+from base_code.training.store_loss_base import StoreLossBase
 
 CallbackResult = TypeVar("CallbackResult")
 
 
-class CTSPlugin(SupervisedPlugin):
+class CTSPlugin(SupervisedPlugin, StoreLossBase):
     def __init__(
         self, lambda_l1: float = 1.0, lambda_l2: float = 1.0, eps: float = 1e-8
     ):
+        super().__init__()
+        StoreLossBase.__init__(self)
         self.lambda_l1 = lambda_l1
         self.lambda_l2 = lambda_l2
         self.eps = eps
@@ -30,8 +32,19 @@ class CTSPlugin(SupervisedPlugin):
         divider_1 = ((s > 0.5).sum().item() + 1) ** 0.5
         divider_2 = ((s <= 0.5).sum().item() + 1) ** 0.5
 
-        strategy.loss += (self.lambda_l1 / divider_1) * (s * model_params).norm(1)
-        strategy.loss += (l2 / divider_2) * ((1 - s) * model_params).norm(2) ** 2
+        first_component = strategy.loss
+        second_component = (s * model_params).norm(1)
+        third_component = ((1 - s) * model_params).norm(2) ** 2
+
+        # save loss
+        self.store_loss(first_component.item(), "first_component")
+        self.store_loss(second_component.item(), "second_component")
+        self.store_loss(third_component.item(), "third_component")
+
+        strategy.loss += (
+            self.lambda_l1 * second_component / divider_1
+            + l2 * third_component / divider_2
+        )
 
     def get_s(self, model: torch.nn.Module, first_iter: bool) -> torch.Tensor:
         """Returns a binary mask that indicates which parameters are

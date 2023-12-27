@@ -8,11 +8,12 @@ from avalanche.training.templates import SupervisedTemplate
 from avalanche.training.utils import zerolike_params_dict
 
 from base_code.helpers import flat_params, flat_importances
+from base_code.training.store_loss_base import StoreLossBase
 
 CallbackResult = TypeVar("CallbackResult")
 
 
-class CEWCPlugin(SupervisedPlugin):
+class CEWCPlugin(SupervisedPlugin, StoreLossBase):
     """
     Constrained Elastic Weight Consolidation (CEWC) plugin.
     """
@@ -23,6 +24,8 @@ class CEWCPlugin(SupervisedPlugin):
         ewc_lambda_l2: float,
         threshold: float = 1.0,
     ):
+        super().__init__()
+        StoreLossBase.__init__(self)
         self.ewc_lambda_l1 = ewc_lambda_l1
         self.ewc_lambda_l2 = ewc_lambda_l2
         self.threshold = threshold
@@ -31,23 +34,35 @@ class CEWCPlugin(SupervisedPlugin):
 
     def before_training_exp(self, strategy: SupervisedTemplate, *args, **kwargs):
         if self.used_params.numel() == 0:
-            self.used_params = torch.zeros_like(flat_params(strategy.model), dtype=torch.bool)
+            self.used_params = torch.zeros_like(
+                flat_params(strategy.model), dtype=torch.bool
+            )
             print("Used params initialized to zero", self.used_params)
-        
+
         if self.saved_params.numel() == 0:
             self.saved_params = flat_params(strategy.model).clone()
 
-    def before_backward(self, strategy: SupervisedTemplate, *args, **kwargs) -> CallbackResult:
+    def before_backward(
+        self, strategy: SupervisedTemplate, *args, **kwargs
+    ) -> CallbackResult:
         penalty = torch.tensor(0).float().to(strategy.device)
 
         flatten_params = flat_params(strategy.model)
         not_used_params = ~self.used_params
         diff_weights = flatten_params - self.saved_params
 
-        penalty += (diff_weights * self.used_params).norm(1) * self.ewc_lambda_l1
-        penalty += (diff_weights * not_used_params).norm(2) * self.ewc_lambda_l2
+        first_component = strategy.loss
+        second_component = (diff_weights * self.used_params).norm(1)
+        third_component = (diff_weights * not_used_params).norm(2) ** 2
 
-        strategy.loss += penalty
+        # save loss
+        self.store_loss(first_component.item(), "first_component")
+        self.store_loss(second_component.item(), "second_component")
+        self.store_loss(third_component.item(), "third_component")
+
+        strategy.loss += (
+            self.ewc_lambda_l1 * second_component + self.ewc_lambda_l2 * third_component
+        )
 
     def after_training_exp(self, strategy: SupervisedTemplate, *args, **kwargs):
         self.saved_params = flat_params(strategy.model).clone()
@@ -63,7 +78,14 @@ class CEWCPlugin(SupervisedPlugin):
         self.used_params = torch.logical_or(self.used_params, new_used)
 
     def compute_importances(
-        self, model: torch.nn.Module, criterion, optimizer, dataset, device, batch_size, num_workers=0
+        self,
+        model: torch.nn.Module,
+        criterion,
+        optimizer,
+        dataset,
+        device,
+        batch_size,
+        num_workers=0,
     ) -> torch.Tensor:
         """
         Compute EWC importance matrix for each parameter
@@ -97,7 +119,9 @@ class CEWCPlugin(SupervisedPlugin):
             loss = criterion(out, y)
             loss.backward()
 
-            for (k1, p), (k2, imp) in zip(model.named_parameters(), importances.items()):
+            for (k1, p), (k2, imp) in zip(
+                model.named_parameters(), importances.items()
+            ):
                 assert k1 == k2
                 if p.grad is not None:
                     imp.data += p.grad.data.clone().pow(2)
@@ -150,3 +174,10 @@ class CEWC(SupervisedTemplate):
             eval_every=eval_every,
             **base_kwargs,
         )
+
+    def get_store_loss(self):
+        # search for the CEWCPlugin instance
+        for plugin in self.plugins:
+            if isinstance(plugin, CEWCPlugin):
+                return plugin.get_loss_store()
+        return None
