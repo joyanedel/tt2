@@ -17,8 +17,7 @@ class WeightStoragePlugin(SupervisedPlugin):
     def __init__(self):
         self.weights: List[torch.Tensor] = []
 
-    def before_training(self, strategy: SupervisedTemplate, *args, **kwargs):
-        self.weights.append(flat_params(strategy.model).detach().clone().cpu())
-
     def after_training_exp(self, strategy: SupervisedTemplate, *args, **kwargs):
-        self.weights.append(flat_params(strategy.model).detach().clone().cpu())
+        self.weights.append(
+            flat_params(strategy.model).detach().clone().to(strategy.device)
+        )

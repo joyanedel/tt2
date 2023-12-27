@@ -36,17 +36,14 @@ class CEWCPlugin(SupervisedPlugin, StoreLossBase):
         if self.used_params.numel() == 0:
             self.used_params = torch.zeros_like(
                 flat_params(strategy.model), dtype=torch.bool
-            )
-            print("Used params initialized to zero", self.used_params)
+            ).to(strategy.device)
 
         if self.saved_params.numel() == 0:
-            self.saved_params = flat_params(strategy.model).clone()
+            self.saved_params = flat_params(strategy.model).clone().to(strategy.device)
 
     def before_backward(
         self, strategy: SupervisedTemplate, *args, **kwargs
     ) -> CallbackResult:
-        penalty = torch.tensor(0).float().to(strategy.device)
-
         flatten_params = flat_params(strategy.model)
         not_used_params = ~self.used_params
         diff_weights = flatten_params - self.saved_params

@@ -115,3 +115,10 @@ class CTS(SupervisedTemplate):
             eval_every=eval_every,
             **base_kwargs,
         )
+
+    def get_store_loss(self):
+        # search for the CEWCPlugin instance
+        for plugin in self.plugins:
+            if isinstance(plugin, CTSPlugin):
+                return plugin.get_loss_store()
+        return None

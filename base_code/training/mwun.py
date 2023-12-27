@@ -115,3 +115,10 @@ class MWUN(SupervisedTemplate):
             eval_every=eval_every,
             **base_kwargs,
         )
+
+    def get_store_loss(self):
+        # search for the CEWCPlugin instance
+        for plugin in self.plugins:
+            if isinstance(plugin, MWUNPlugin):
+                return plugin.get_loss_store()
+        return None
