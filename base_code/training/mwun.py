@@ -35,6 +35,11 @@ class MWUNPlugin(SupervisedPlugin, StoreLossBase):
         self.prev_params = model_params.clone()
 
     def before_training(self, strategy: SupervisedTemplate, *args, **kwargs):
+        exp_counter = strategy.clock.train_exp_counter
+
+        if exp_counter > 0:
+            return
+
         model_params = flat_params(strategy.model)
         self.prev_p = torch.zeros_like(model_params)
         self.prev_params = model_params.clone()
