@@ -15,14 +15,12 @@ CallbackResult = TypeVar("CallbackResult")
 class MWUNPlugin(SupervisedPlugin, StoreLossBase):
     def __init__(
         self,
-        lambda_q: float = 1.0,
         lambda_e: float = 1.0,
         lambda_f: float = 1.0,
         eps: float = 1e-8,
     ):
         super().__init__()
         StoreLossBase.__init__(self)
-        self.lambda_q = lambda_q
         self.lambda_e = lambda_e
         self.lambda_f = lambda_f
         self.eps = eps
@@ -51,20 +49,16 @@ class MWUNPlugin(SupervisedPlugin, StoreLossBase):
         p = (model_params.abs() > self.eps).float()
 
         first_component = strategy.loss
-        second_component = p.norm(1)
-        third_component = (self.prev_p * (model_params - self.prev_params)).norm(1)
-        fourth_component = ((1 - p) * model_params).norm(1)
+        second_component = (self.prev_p * (model_params - self.prev_params)).norm(1)
+        third_component = ((1 - p) * model_params).norm(1)
 
         # save loss
         self.store_loss(first_component.item(), "first_component")
         self.store_loss(second_component.item(), "second_component")
         self.store_loss(third_component.item(), "third_component")
-        self.store_loss(fourth_component.item(), "fourth_component")
 
         strategy.loss += (
-            self.lambda_q * second_component
-            + self.lambda_e * third_component
-            + self.lambda_f * fourth_component
+            +self.lambda_e * second_component + self.lambda_f * third_component
         )
 
 
@@ -89,7 +83,6 @@ class MWUN(SupervisedTemplate):
         model,
         optimizer,
         criterion,
-        lambda_q: float = 1.0,
         lambda_e: float = 1.0,
         lambda_f: float = 1.0,
         eps: float = 1e-8,
@@ -102,7 +95,7 @@ class MWUN(SupervisedTemplate):
         eval_every=-1,
         **base_kwargs,
     ):
-        cts = MWUNPlugin(lambda_q, lambda_e, lambda_f, eps)
+        cts = MWUNPlugin(lambda_e, lambda_f, eps)
         if plugins is None:
             plugins = []
         plugins.append(cts)
