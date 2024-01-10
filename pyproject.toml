@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{include = "base_code"}, ]
 
 [tool.poetry.dependencies]
-python = "~3.9"
+python = "^3.9"
 numpy = "1.25.2"
 pandas = "2.1.0"
 torch = "2.1.0"
