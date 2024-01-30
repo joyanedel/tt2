@@ -5,4 +5,7 @@
         "editor.wordBasedSuggestions": "off",
         "editor.defaultFormatter": "ms-python.black-formatter"
     },
+    "markdown.marp.themes": [
+        "./assets/beam.css"
+    ],
 }
